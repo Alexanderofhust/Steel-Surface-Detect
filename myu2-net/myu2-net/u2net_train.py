@@ -60,7 +60,7 @@ def train_model(epoch_nums, cuda_device, model_save_dir):
     """
     current_time = datetime.datetime.now()
     current_time = datetime.datetime.strftime(current_time, '%Y-%m-%d-%H:%M')
-    model_save_dir = os.path.join(os.getcwd(),model_save_dir)
+    model_save_dir = os.path.join(os.getcwd(), model_save_dir)
     if not os.path.exists(model_save_dir):
         os.makedirs(model_save_dir)
     else:
@@ -86,6 +86,7 @@ def train_model(epoch_nums, cuda_device, model_save_dir):
     for epoch in range(0, epoch_nums):
         run_loss = list()
         run_tar_loss = list()
+        run_iou = list()
 
         net.train()
         for i, (inputs, gt_masks) in enumerate(tqdm(train_loader)):
@@ -102,17 +103,51 @@ def train_model(epoch_nums, cuda_device, model_save_dir):
 
             run_loss.append(loss.item())
             run_tar_loss.append(loss2.item())
+
+            # 计算IoU
+            iou = calculate_iou(d0, gt_masks)
+            run_iou.append(iou)
+
             del d0, d1, d2, d3, d4, d5, d6, loss2, loss
 
         print("--Train Epoch:{}--".format(epoch))
         print("--Train run_loss:{:.4f}--".format(np.mean(run_loss)))
-        print("--Train run_tar_loss:{:.4f}--\n".format(np.mean(run_tar_loss)))
+        print("--Train run_tar_loss:{:.4f}--".format(np.mean(run_tar_loss)))
+        print("--Train run_iou:{:.4f}--\n".format(np.mean(run_iou)))
 
         if epoch % 5 == 0:
             checkpoint_name = 'checkpoint_' + str(epoch) + '_' + str(np.mean(run_loss)) + '.pth'
-            torch.save(net.state_dict(), os.path.join(model_save_dir,'1.pth'))
+            torch.save(net.state_dict(), os.path.join(model_save_dir, '1.pth'))
             print("--model saved:{}--".format(checkpoint_name))
 
+def calculate_iou(pred, target):
+    """
+    计算两个二值张量的IoU值。
+
+    参数:
+    pred -- 预测的二值张量
+    target -- 真实的二值张量
+
+    返回:
+    iou -- IoU值
+    """
+    # 将预测结果转换为二值
+    pred = (pred > 0.5).float()
+
+    # 计算交集
+    intersection = (pred * target).sum()
+
+    # 计算并集
+    union = pred.sum() + target.sum() - intersection
+
+    # 防止除以零
+    if union == 0:
+        return 0.0
+
+    # 计算IoU
+    iou = intersection / union
+
+    return iou.item()
 
 if __name__ == '__main__':
     train_model(epoch_nums=10    , cuda_device='cuda:1',
